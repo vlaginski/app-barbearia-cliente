@@ -9,7 +9,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Calendar, Clock, Scissors, User, Phone, Mail, Plus, Home, Settings, LogOut, CalendarDays, CreditCard, X, ArrowLeft, Menu, Eye, Users } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { supabase } from '@/lib/supabase'
+
+// Importação condicional do Supabase
+let supabase: any = null
+try {
+  if (typeof window !== 'undefined') {
+    const supabaseModule = require('@/lib/supabase')
+    supabase = supabaseModule.supabase
+  }
+} catch (error) {
+  console.log('Supabase não configurado')
+}
 
 interface Appointment {
   id: string
@@ -52,7 +62,7 @@ export default function BarbershopApp() {
 
   // Carregar agendamentos do usuário
   useEffect(() => {
-    if (user) {
+    if (user && supabase) {
       loadUserAppointments()
       if (user.role === 'admin') {
         loadAllAppointments() // Carregar todos os agendamentos para admin
@@ -62,7 +72,7 @@ export default function BarbershopApp() {
   }, [user])
 
   const loadUserAppointments = async () => {
-    if (!user) return
+    if (!user || !supabase) return
 
     try {
       const { data, error } = await supabase
@@ -73,7 +83,7 @@ export default function BarbershopApp() {
 
       if (error) throw error
 
-      const formattedAppointments = data.map(apt => ({
+      const formattedAppointments = data.map((apt: any) => ({
         id: apt.id,
         date: apt.date,
         time: apt.time,
@@ -93,7 +103,7 @@ export default function BarbershopApp() {
 
   // Carregar TODOS os agendamentos para admin
   const loadAllAppointments = async () => {
-    if (!user || user.role !== 'admin') return
+    if (!user || user.role !== 'admin' || !supabase) return
 
     try {
       const { data, error } = await supabase
@@ -103,7 +113,7 @@ export default function BarbershopApp() {
 
       if (error) throw error
 
-      const formattedAppointments = data.map(apt => ({
+      const formattedAppointments = data.map((apt: any) => ({
         id: apt.id,
         date: apt.date,
         time: apt.time,
@@ -170,7 +180,7 @@ export default function BarbershopApp() {
 
   // Confirmar agendamento
   const confirmSchedule = async () => {
-    if (!user) return
+    if (!user || !supabase) return
 
     const servicePrice = {
       'Corte Simples': 25,
@@ -224,6 +234,8 @@ export default function BarbershopApp() {
 
   // Cancelar agendamento
   const cancelAppointment = async (id: string) => {
+    if (!supabase) return
+
     try {
       const { error } = await supabase
         .from('appointments')
