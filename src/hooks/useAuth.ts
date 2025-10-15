@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@/lib/supabase'
@@ -7,10 +9,17 @@ export function useAuth() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Verificar se há usuário logado no localStorage
-    const savedUser = localStorage.getItem('barbershop_user')
-    if (savedUser) {
-      setUser(JSON.parse(savedUser))
+    // Verificar se há usuário logado no localStorage (apenas no cliente)
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('barbershop_user')
+      if (savedUser) {
+        try {
+          setUser(JSON.parse(savedUser))
+        } catch (error) {
+          console.error('Erro ao parsear usuário salvo:', error)
+          localStorage.removeItem('barbershop_user')
+        }
+      }
     }
     setLoading(false)
   }, [])
@@ -31,7 +40,12 @@ export function useAuth() {
 
       const user = userData as User
       setUser(user)
-      localStorage.setItem('barbershop_user', JSON.stringify(user))
+      
+      // Salvar no localStorage apenas no cliente
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('barbershop_user', JSON.stringify(user))
+      }
+      
       return { success: true, user }
     } catch (error: any) {
       console.error('Erro no login:', error)
@@ -71,7 +85,12 @@ export function useAuth() {
 
       const user = userData as User
       setUser(user)
-      localStorage.setItem('barbershop_user', JSON.stringify(user))
+      
+      // Salvar no localStorage apenas no cliente
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('barbershop_user', JSON.stringify(user))
+      }
+      
       return { success: true, user }
     } catch (error: any) {
       console.error('Erro no cadastro:', error)
@@ -81,7 +100,9 @@ export function useAuth() {
 
   const logout = () => {
     setUser(null)
-    localStorage.removeItem('barbershop_user')
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('barbershop_user')
+    }
   }
 
   return {

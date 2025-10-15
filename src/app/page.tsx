@@ -30,82 +30,13 @@ const barbers = [
   { id: '4', name: 'Rafael Costa' }
 ]
 
-// Dados simulados de agendamentos de todos os clientes
-const allAppointments: Appointment[] = [
-  {
-    id: '1',
-    date: '2024-01-15',
-    time: '09:00',
-    service: 'Corte Simples',
-    barber: 'Carlos Silva',
-    status: 'agendado',
-    price: 25,
-    clientName: 'João Silva',
-    clientPhone: '(11) 99999-9999'
-  },
-  {
-    id: '2',
-    date: '2024-01-15',
-    time: '10:00',
-    service: 'Corte + Barba',
-    barber: 'João Santos',
-    status: 'agendado',
-    price: 40,
-    clientName: 'Maria Santos',
-    clientPhone: '(11) 88888-8888'
-  },
-  {
-    id: '3',
-    date: '2024-01-15',
-    time: '11:00',
-    service: 'Barba',
-    barber: 'Pedro Lima',
-    status: 'agendado',
-    price: 20,
-    clientName: 'Carlos Oliveira',
-    clientPhone: '(11) 77777-7777'
-  },
-  {
-    id: '4',
-    date: '2024-01-15',
-    time: '14:00',
-    service: 'Corte Premium',
-    barber: 'Rafael Costa',
-    status: 'agendado',
-    price: 50,
-    clientName: 'Ana Costa',
-    clientPhone: '(11) 66666-6666'
-  },
-  {
-    id: '5',
-    date: '2024-01-14',
-    time: '15:00',
-    service: 'Corte Simples',
-    barber: 'Carlos Silva',
-    status: 'concluido',
-    price: 25,
-    clientName: 'Pedro Alves',
-    clientPhone: '(11) 55555-5555'
-  },
-  {
-    id: '6',
-    date: '2024-01-14',
-    time: '16:00',
-    service: 'Corte + Barba',
-    barber: 'João Santos',
-    status: 'cancelado',
-    price: 40,
-    clientName: 'Lucas Ferreira',
-    clientPhone: '(11) 44444-4444'
-  }
-]
-
 export default function BarbershopApp() {
   const { user, loading, login, register, logout } = useAuth()
   const [activeTab, setActiveTab] = useState('login')
   const [appointmentTab, setAppointmentTab] = useState('agendados')
   const [adminAppointmentTab, setAdminAppointmentTab] = useState('hoje')
   const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [allAppointments, setAllAppointments] = useState<Appointment[]>([]) // Para admin
   const [showNewAppointment, setShowNewAppointment] = useState(false)
   const [showUpgradePopup, setShowUpgradePopup] = useState(false)
   const [showPlanAdvantages, setShowPlanAdvantages] = useState(false)
@@ -123,6 +54,9 @@ export default function BarbershopApp() {
   useEffect(() => {
     if (user) {
       loadUserAppointments()
+      if (user.role === 'admin') {
+        loadAllAppointments() // Carregar todos os agendamentos para admin
+      }
       setActiveTab('agendamentos')
     }
   }, [user])
@@ -154,6 +88,36 @@ export default function BarbershopApp() {
       setAppointments(formattedAppointments)
     } catch (error) {
       console.error('Erro ao carregar agendamentos:', error)
+    }
+  }
+
+  // Carregar TODOS os agendamentos para admin
+  const loadAllAppointments = async () => {
+    if (!user || user.role !== 'admin') return
+
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .order('date', { ascending: true })
+
+      if (error) throw error
+
+      const formattedAppointments = data.map(apt => ({
+        id: apt.id,
+        date: apt.date,
+        time: apt.time,
+        service: apt.service,
+        barber: apt.barber,
+        status: apt.status,
+        price: parseFloat(apt.price),
+        clientName: apt.client_name,
+        clientPhone: apt.client_phone
+      }))
+
+      setAllAppointments(formattedAppointments)
+    } catch (error) {
+      console.error('Erro ao carregar todos os agendamentos:', error)
     }
   }
 
@@ -240,6 +204,9 @@ export default function BarbershopApp() {
 
       // Atualizar lista local
       await loadUserAppointments()
+      if (user.role === 'admin') {
+        await loadAllAppointments()
+      }
       
       setAppointmentForm({ date: '', time: '', service: 'Corte Simples', barber: '' })
       setShowNewAppointment(false)
@@ -267,6 +234,9 @@ export default function BarbershopApp() {
 
       // Atualizar lista local
       await loadUserAppointments()
+      if (user && user.role === 'admin') {
+        await loadAllAppointments()
+      }
     } catch (error) {
       console.error('Erro ao cancelar agendamento:', error)
     }
@@ -277,6 +247,7 @@ export default function BarbershopApp() {
     logout()
     setActiveTab('login')
     setAppointments([])
+    setAllAppointments([])
     setSidebarOpen(false)
   }
 
@@ -291,9 +262,9 @@ export default function BarbershopApp() {
     return allAppointments.filter(apt => apt.date === date)
   }
 
-  // Obter data de hoje
+  // Obter data de hoje e amanhã
   const today = new Date().toISOString().split('T')[0]
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   if (loading) {
     return (
@@ -889,11 +860,59 @@ export default function BarbershopApp() {
                       Agendamentos de Amanhã - {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR')}
                     </h3>
                   </div>
-                  <div className="text-center py-12">
-                    <CalendarDays className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum agendamento amanhã</h3>
-                    <p className="text-gray-500">Não há agendamentos para amanhã ainda.</p>
-                  </div>
+                  {getAppointmentsByDate(tomorrow).filter(apt => apt.status === 'agendado').length === 0 ? (
+                    <div className="text-center py-12">
+                      <CalendarDays className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum agendamento amanhã</h3>
+                      <p className="text-gray-500">Não há agendamentos para amanhã ainda.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {getAppointmentsByDate(tomorrow)
+                        .filter(apt => apt.status === 'agendado')
+                        .sort((a, b) => a.time.localeCompare(b.time))
+                        .map((appointment) => (
+                          <Card key={appointment.id} className="border-l-4 border-l-blue-500">
+                            <CardContent className="p-4 lg:p-6">
+                              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                                <div className="flex items-center space-x-4">
+                                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <Scissors className="h-6 w-6 text-blue-600" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2">
+                                      <h3 className="font-medium text-gray-900">{appointment.service}</h3>
+                                      <Badge className="bg-blue-600 text-white w-fit">
+                                        {appointment.time}
+                                      </Badge>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600">
+                                      <div className="flex items-center">
+                                        <User className="h-4 w-4 mr-2" />
+                                        Cliente: {appointment.clientName}
+                                      </div>
+                                      <div className="flex items-center">
+                                        <Phone className="h-4 w-4 mr-2" />
+                                        {appointment.clientPhone}
+                                      </div>
+                                      <div className="flex items-center">
+                                        <Scissors className="h-4 w-4 mr-2" />
+                                        Barbeiro: {appointment.barber}
+                                      </div>
+                                      <div className="flex items-center">
+                                        <span className="text-lg font-medium text-gray-900">
+                                          R$ {appointment.price}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                    </div>
+                  )}
                 </div>
               )}
 
