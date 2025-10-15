@@ -25,6 +25,10 @@ export function useAuth() {
   }, [])
 
   const login = async (email: string, password: string) => {
+    if (!supabase) {
+      return { success: false, error: 'Supabase não configurado' }
+    }
+
     try {
       // Buscar usuário na tabela barbershop_users
       const { data: userData, error } = await supabase
@@ -54,6 +58,10 @@ export function useAuth() {
   }
 
   const register = async (name: string, email: string, phone: string, password: string) => {
+    if (!supabase) {
+      return { success: false, error: 'Supabase não configurado' }
+    }
+
     try {
       // Verificar se o email já existe
       const { data: existingUser } = await supabase
