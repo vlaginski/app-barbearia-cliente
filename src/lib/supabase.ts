@@ -1,15 +1,3 @@
-import { createClient } from '@supabase/supabase-js'
-
-// Verificar se as variáveis de ambiente estão definidas
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Variáveis de ambiente do Supabase não configuradas')
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
 // Tipos para o banco de dados
 export interface User {
   id: string
@@ -34,3 +22,44 @@ export interface Appointment {
   client_phone: string
   created_at: string
 }
+
+// Função helper para verificar se o Supabase está configurado
+export const isSupabaseConfigured = (): boolean => {
+  if (typeof window === 'undefined') return false
+  return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+}
+
+// Função para criar cliente Supabase apenas quando necessário
+export const createSupabaseClient = async () => {
+  if (typeof window === 'undefined') return null
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return null
+  }
+  
+  try {
+    const { createClient } = await import('@supabase/supabase-js')
+    return createClient(supabaseUrl, supabaseAnonKey)
+  } catch (error) {
+    console.warn('Erro ao criar cliente Supabase:', error)
+    return null
+  }
+}
+
+// Cliente Supabase (lazy initialization)
+let supabaseClient: any = null
+
+export const getSupabase = async () => {
+  if (typeof window === 'undefined') return null
+  
+  if (!supabaseClient) {
+    supabaseClient = await createSupabaseClient()
+  }
+  return supabaseClient
+}
+
+// Export do cliente para compatibilidade (será null durante build)
+export const supabase = null
