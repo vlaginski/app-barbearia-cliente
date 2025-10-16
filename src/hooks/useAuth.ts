@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createSupabaseClient } from '@/lib/supabase'
+import { createSupabaseClient, isSupabaseConfigured } from '@/lib/supabase'
 import type { User } from '@/lib/supabase'
 
 export function useAuth() {
@@ -26,6 +26,11 @@ export function useAuth() {
 
   const login = async (email: string, password: string) => {
     try {
+      // Verificar se o Supabase está configurado
+      if (!isSupabaseConfigured()) {
+        throw new Error('Supabase não configurado')
+      }
+
       const supabase = createSupabaseClient()
       
       if (!supabase) {
@@ -61,6 +66,11 @@ export function useAuth() {
 
   const register = async (name: string, email: string, phone: string, password: string) => {
     try {
+      // Verificar se o Supabase está configurado
+      if (!isSupabaseConfigured()) {
+        throw new Error('Supabase não configurado')
+      }
+
       const supabase = createSupabaseClient()
       
       if (!supabase) {
@@ -122,6 +132,7 @@ export function useAuth() {
     loading,
     login,
     register,
-    logout
+    logout,
+    isSupabaseConfigured: isSupabaseConfigured()
   }
 }

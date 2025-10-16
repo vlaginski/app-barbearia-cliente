@@ -33,6 +33,18 @@ export function createSupabaseClient(): SupabaseClient | null {
   }
 }
 
+// Função para verificar se o Supabase está configurado
+export function isSupabaseConfigured(): boolean {
+  if (typeof window === 'undefined') {
+    return false
+  }
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  
+  return !!(supabaseUrl && supabaseAnonKey)
+}
+
 // Export da instância para compatibilidade com código existente
 export const supabase = createSupabaseClient()
 
