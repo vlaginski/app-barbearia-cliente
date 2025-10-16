@@ -3,6 +3,18 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 // Variável para armazenar a instância do cliente
 let supabaseInstance: SupabaseClient | null = null
 
+// Função para obter as variáveis de ambiente do Supabase
+function getSupabaseConfig() {
+  // Tentar diferentes formas de acessar as variáveis
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 
+                     (typeof window !== 'undefined' && (window as any).ENV?.NEXT_PUBLIC_SUPABASE_URL)
+  
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+                         (typeof window !== 'undefined' && (window as any).ENV?.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+
+  return { supabaseUrl, supabaseAnonKey }
+}
+
 // Função para criar o cliente Supabase apenas quando necessário
 export function createSupabaseClient(): SupabaseClient | null {
   // Verificar se estamos no lado do cliente
@@ -15,9 +27,8 @@ export function createSupabaseClient(): SupabaseClient | null {
     return supabaseInstance
   }
 
-  // Verificar se as variáveis de ambiente estão definidas
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // Obter configurações do Supabase
+  const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig()
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.warn('Variáveis de ambiente do Supabase não configuradas')
@@ -39,14 +50,15 @@ export function isSupabaseConfigured(): boolean {
     return false
   }
   
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig()
   
-  return !!(supabaseUrl && supabaseAnonKey)
+  return !!(supabaseUrl && supabaseAnonKey && supabaseUrl.includes('supabase'))
 }
 
-// Export da instância para compatibilidade com código existente - REMOVIDO para evitar erro de build
-// export const supabase = createSupabaseClient()
+// Função para resetar a instância (útil para reconfiguração)
+export function resetSupabaseInstance() {
+  supabaseInstance = null
+}
 
 // Tipos para o banco de dados
 export interface User {

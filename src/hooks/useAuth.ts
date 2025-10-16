@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createSupabaseClient, isSupabaseConfigured } from '@/lib/supabase'
+import { createSupabaseClient, isSupabaseConfigured, resetSupabaseInstance } from '@/lib/supabase'
 import type { User } from '@/lib/supabase'
 
 export function useAuth() {
@@ -26,15 +26,18 @@ export function useAuth() {
 
   const login = async (email: string, password: string) => {
     try {
+      // Resetar instância para forçar nova verificação
+      resetSupabaseInstance()
+      
       // Verificar se o Supabase está configurado
       if (!isSupabaseConfigured()) {
-        throw new Error('Sistema de banco de dados não está disponível no momento. Tente novamente mais tarde.')
+        throw new Error('Para usar o sistema de login, você precisa configurar o banco de dados. Vá em Configurações do Projeto → Integrações → Selecione um projeto Supabase.')
       }
 
       const supabase = createSupabaseClient()
       
       if (!supabase) {
-        throw new Error('Sistema de banco de dados não está disponível no momento. Tente novamente mais tarde.')
+        throw new Error('Erro na conexão com o banco de dados. Verifique se o projeto Supabase está selecionado nas configurações.')
       }
 
       // Buscar usuário na tabela barbershop_users
@@ -46,7 +49,10 @@ export function useAuth() {
         .single()
 
       if (error || !userData) {
-        throw new Error('Email ou senha incorretos')
+        if (error?.code === 'PGRST116') {
+          throw new Error('Email ou senha incorretos')
+        }
+        throw new Error('Erro na conexão com o banco de dados: ' + (error?.message || 'Erro desconhecido'))
       }
 
       const user = userData as User
@@ -66,15 +72,18 @@ export function useAuth() {
 
   const register = async (name: string, email: string, phone: string, password: string) => {
     try {
+      // Resetar instância para forçar nova verificação
+      resetSupabaseInstance()
+      
       // Verificar se o Supabase está configurado
       if (!isSupabaseConfigured()) {
-        throw new Error('Sistema de banco de dados não está disponível no momento. Tente novamente mais tarde.')
+        throw new Error('Para usar o sistema de cadastro, você precisa configurar o banco de dados. Vá em Configurações do Projeto → Integrações → Selecione um projeto Supabase.')
       }
 
       const supabase = createSupabaseClient()
       
       if (!supabase) {
-        throw new Error('Sistema de banco de dados não está disponível no momento. Tente novamente mais tarde.')
+        throw new Error('Erro na conexão com o banco de dados. Verifique se o projeto Supabase está selecionado nas configurações.')
       }
 
       // Verificar se o email já existe
@@ -103,7 +112,12 @@ export function useAuth() {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        if (error.code === '42P01') {
+          throw new Error('Tabela do banco de dados não encontrada. Verifique se o banco está configurado corretamente.')
+        }
+        throw new Error('Erro ao criar conta: ' + error.message)
+      }
 
       const user = userData as User
       setUser(user)
