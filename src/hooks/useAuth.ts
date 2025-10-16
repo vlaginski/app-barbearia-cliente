@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createSupabaseClient } from '@/lib/supabase'
 import type { User } from '@/lib/supabase'
 
 export function useAuth() {
@@ -25,11 +25,13 @@ export function useAuth() {
   }, [])
 
   const login = async (email: string, password: string) => {
-    if (!supabase) {
-      return { success: false, error: 'Supabase não configurado' }
-    }
-
     try {
+      const supabase = createSupabaseClient()
+      
+      if (!supabase) {
+        throw new Error('Supabase não configurado')
+      }
+
       // Buscar usuário na tabela barbershop_users
       const { data: userData, error } = await supabase
         .from('barbershop_users')
@@ -58,11 +60,13 @@ export function useAuth() {
   }
 
   const register = async (name: string, email: string, phone: string, password: string) => {
-    if (!supabase) {
-      return { success: false, error: 'Supabase não configurado' }
-    }
-
     try {
+      const supabase = createSupabaseClient()
+      
+      if (!supabase) {
+        throw new Error('Supabase não configurado')
+      }
+
       // Verificar se o email já existe
       const { data: existingUser } = await supabase
         .from('barbershop_users')

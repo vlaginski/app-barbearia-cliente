@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Calendar, Clock, Scissors, User, Phone, Mail, Plus, Home, Settings, LogOut, CalendarDays, CreditCard, X, ArrowLeft, Menu, Eye, Users } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { createSupabaseClient } from '@/lib/supabase'
 
 interface Appointment {
   id: string
@@ -64,9 +65,12 @@ export default function BarbershopApp() {
     if (!user) return
 
     try {
-      // Importação dinâmica do supabase apenas quando necessário
-      const { supabase } = await import('@/lib/supabase')
-      if (!supabase) return
+      const supabase = createSupabaseClient()
+      
+      if (!supabase) {
+        console.warn('Supabase não configurado')
+        return
+      }
 
       const { data, error } = await supabase
         .from('appointments')
@@ -76,7 +80,7 @@ export default function BarbershopApp() {
 
       if (error) throw error
 
-      const formattedAppointments = data.map((apt: any) => ({
+      const formattedAppointments = data.map(apt => ({
         id: apt.id,
         date: apt.date,
         time: apt.time,
@@ -99,9 +103,12 @@ export default function BarbershopApp() {
     if (!user || user.role !== 'admin') return
 
     try {
-      // Importação dinâmica do supabase apenas quando necessário
-      const { supabase } = await import('@/lib/supabase')
-      if (!supabase) return
+      const supabase = createSupabaseClient()
+      
+      if (!supabase) {
+        console.warn('Supabase não configurado')
+        return
+      }
 
       const { data, error } = await supabase
         .from('appointments')
@@ -110,7 +117,7 @@ export default function BarbershopApp() {
 
       if (error) throw error
 
-      const formattedAppointments = data.map((apt: any) => ({
+      const formattedAppointments = data.map(apt => ({
         id: apt.id,
         date: apt.date,
         time: apt.time,
@@ -179,20 +186,23 @@ export default function BarbershopApp() {
   const confirmSchedule = async () => {
     if (!user) return
 
+    const servicePrice = {
+      'Corte Simples': 25,
+      'Corte + Barba': 40,
+      'Corte Premium': 50,
+      'Barba': 20
+    }
+    
+    const selectedBarber = barbers.find(b => b.id === appointmentForm.barber)
+    
     try {
-      // Importação dinâmica do supabase apenas quando necessário
-      const { supabase } = await import('@/lib/supabase')
-      if (!supabase) return
-
-      const servicePrice = {
-        'Corte Simples': 25,
-        'Corte + Barba': 40,
-        'Corte Premium': 50,
-        'Barba': 20
+      const supabase = createSupabaseClient()
+      
+      if (!supabase) {
+        console.warn('Supabase não configurado')
+        return
       }
-      
-      const selectedBarber = barbers.find(b => b.id === appointmentForm.barber)
-      
+
       const { data, error } = await supabase
         .from('appointments')
         .insert([
@@ -236,9 +246,12 @@ export default function BarbershopApp() {
   // Cancelar agendamento
   const cancelAppointment = async (id: string) => {
     try {
-      // Importação dinâmica do supabase apenas quando necessário
-      const { supabase } = await import('@/lib/supabase')
-      if (!supabase) return
+      const supabase = createSupabaseClient()
+      
+      if (!supabase) {
+        console.warn('Supabase não configurado')
+        return
+      }
 
       const { error } = await supabase
         .from('appointments')
