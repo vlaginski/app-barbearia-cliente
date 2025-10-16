@@ -45,8 +45,8 @@ export function isSupabaseConfigured(): boolean {
   return !!(supabaseUrl && supabaseAnonKey)
 }
 
-// Export da instância para compatibilidade com código existente
-export const supabase = createSupabaseClient()
+// Export da instância para compatibilidade com código existente - REMOVIDO para evitar erro de build
+// export const supabase = createSupabaseClient()
 
 // Tipos para o banco de dados
 export interface User {

@@ -28,13 +28,13 @@ export function useAuth() {
     try {
       // Verificar se o Supabase está configurado
       if (!isSupabaseConfigured()) {
-        throw new Error('Supabase não configurado')
+        throw new Error('Sistema de banco de dados não está disponível no momento. Tente novamente mais tarde.')
       }
 
       const supabase = createSupabaseClient()
       
       if (!supabase) {
-        throw new Error('Supabase não configurado')
+        throw new Error('Sistema de banco de dados não está disponível no momento. Tente novamente mais tarde.')
       }
 
       // Buscar usuário na tabela barbershop_users
@@ -68,13 +68,13 @@ export function useAuth() {
     try {
       // Verificar se o Supabase está configurado
       if (!isSupabaseConfigured()) {
-        throw new Error('Supabase não configurado')
+        throw new Error('Sistema de banco de dados não está disponível no momento. Tente novamente mais tarde.')
       }
 
       const supabase = createSupabaseClient()
       
       if (!supabase) {
-        throw new Error('Supabase não configurado')
+        throw new Error('Sistema de banco de dados não está disponível no momento. Tente novamente mais tarde.')
       }
 
       // Verificar se o email já existe
