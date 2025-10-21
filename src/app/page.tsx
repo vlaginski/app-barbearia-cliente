@@ -41,38 +41,48 @@ const barbers = [
   }
 ]
 
-// Função para gerar horários de 15 em 15 minutos das 10h às 20h, considerando horário atual + 15 minutos
-const generateTimeSlots = () => {
+// Função para gerar horários de 15 em 15 minutos das 10h às 20h
+const generateTimeSlots = (selectedDate?: string) => {
   const slots = []
   const now = new Date()
-  const currentHour = now.getHours()
-  const currentMinute = now.getMinutes()
+  const today = now.toISOString().split('T')[0]
+  const isToday = selectedDate === today
   
-  // Calcular o próximo horário válido (atual + 15 minutos, arredondado para próximo slot de 15 min)
-  const nextValidMinute = Math.ceil((currentMinute + 15) / 15) * 15
-  let nextValidHour = currentHour
-  
-  if (nextValidMinute >= 60) {
-    nextValidHour = currentHour + 1
-  }
-  
-  const nextValidTime = nextValidHour * 60 + (nextValidMinute % 60)
-  
-  for (let hour = 10; hour <= 19; hour++) {
-    for (let minute = 0; minute < 60; minute += 15) {
-      const slotTime = hour * 60 + minute
-      
-      // Só adicionar horários que sejam pelo menos 15 minutos no futuro
-      if (slotTime >= nextValidTime) {
+  // Se for hoje, aplicar regra de 15 minutos
+  if (isToday) {
+    const currentHour = now.getHours()
+    const currentMinute = now.getMinutes()
+    
+    // Calcular o próximo horário válido (atual + 15 minutos, arredondado para cima)
+    const totalCurrentMinutes = currentHour * 60 + currentMinute
+    const nextValidTotalMinutes = Math.ceil((totalCurrentMinutes + 15) / 15) * 15
+    
+    for (let hour = 10; hour <= 19; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
+        const slotTotalMinutes = hour * 60 + minute
+        
+        // Só adicionar horários que sejam pelo menos 15 minutos no futuro
+        if (slotTotalMinutes >= nextValidTotalMinutes) {
+          const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+          slots.push(timeString)
+        }
+      }
+    }
+    
+    // Adicionar 20:00 se for válido
+    const twentyOClock = 20 * 60
+    if (twentyOClock >= nextValidTotalMinutes) {
+      slots.push('20:00')
+    }
+  } else {
+    // Para outros dias, horários normais das 10h às 20h
+    for (let hour = 10; hour <= 19; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
         const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
         slots.push(timeString)
       }
     }
-  }
-  
-  // Adicionar 20:00 se for válido
-  const twentyOClock = 20 * 60
-  if (twentyOClock >= nextValidTime) {
+    // Adicionar 20:00
     slots.push('20:00')
   }
   
@@ -228,7 +238,7 @@ export default function BarbershopApp() {
       
       if (!supabase) {
         console.warn('Supabase não configurado')
-        setAvailableTimeSlots(generateTimeSlots())
+        setAvailableTimeSlots(generateTimeSlots(selectedDate))
         return
       }
 
@@ -241,8 +251,8 @@ export default function BarbershopApp() {
 
       if (error) throw error
 
-      // Obter todos os horários possíveis
-      const allTimeSlots = generateTimeSlots()
+      // Obter todos os horários possíveis para a data selecionada
+      const allTimeSlots = generateTimeSlots(selectedDate)
       
       // Contar quantos barbeiros estão ocupados em cada horário
       const occupiedSlots: { [key: string]: number } = {}
@@ -259,7 +269,7 @@ export default function BarbershopApp() {
       setAvailableTimeSlots(availableSlots)
     } catch (error) {
       console.error('Erro ao carregar horários disponíveis:', error)
-      setAvailableTimeSlots(generateTimeSlots())
+      setAvailableTimeSlots(generateTimeSlots(selectedDate))
     }
   }
 
