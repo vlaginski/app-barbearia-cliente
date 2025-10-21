@@ -29,7 +29,11 @@ const barbers = [
     name: 'Ellibe',
     image: 'https://k6hrqrxuu8obbfwn.public.blob.vercel-storage.com/temp/151972b5-b22f-4f18-a464-d72cc547e48f.jpg'
   },
-  { id: '2', name: 'Kaynho' },
+  { 
+    id: '2', 
+    name: 'Kaynho',
+    image: 'https://k6hrqrxuu8obbfwn.public.blob.vercel-storage.com/temp/34c2c8d1-5441-425b-b11a-8fbd45448366.jpg'
+  },
   { 
     id: '3', 
     name: 'Oliver Leticia',
@@ -37,17 +41,41 @@ const barbers = [
   }
 ]
 
-// Função para gerar horários de 15 em 15 minutos das 10h às 20h
+// Função para gerar horários de 15 em 15 minutos das 10h às 20h, considerando horário atual + 15 minutos
 const generateTimeSlots = () => {
   const slots = []
+  const now = new Date()
+  const currentHour = now.getHours()
+  const currentMinute = now.getMinutes()
+  
+  // Calcular o próximo horário válido (atual + 15 minutos, arredondado para próximo slot de 15 min)
+  const nextValidMinute = Math.ceil((currentMinute + 15) / 15) * 15
+  let nextValidHour = currentHour
+  
+  if (nextValidMinute >= 60) {
+    nextValidHour = currentHour + 1
+  }
+  
+  const nextValidTime = nextValidHour * 60 + (nextValidMinute % 60)
+  
   for (let hour = 10; hour <= 19; hour++) {
     for (let minute = 0; minute < 60; minute += 15) {
-      const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-      slots.push(timeString)
+      const slotTime = hour * 60 + minute
+      
+      // Só adicionar horários que sejam pelo menos 15 minutos no futuro
+      if (slotTime >= nextValidTime) {
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+        slots.push(timeString)
+      }
     }
   }
-  // Adicionar 20:00 como último horário
-  slots.push('20:00')
+  
+  // Adicionar 20:00 se for válido
+  const twentyOClock = 20 * 60
+  if (twentyOClock >= nextValidTime) {
+    slots.push('20:00')
+  }
+  
   return slots
 }
 
@@ -464,6 +492,12 @@ export default function BarbershopApp() {
     return allAppointments.filter(apt => apt.date === date)
   }
 
+  // Função para obter a imagem do barbeiro
+  const getBarberImage = (barberName: string) => {
+    const barber = barbers.find(b => b.name === barberName)
+    return barber?.image
+  }
+
   // Obter data de hoje e amanhã - CORREÇÃO AQUI
   const today = new Date().toISOString().split('T')[0]
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -840,45 +874,56 @@ export default function BarbershopApp() {
                     <div className="space-y-4">
                       {appointments
                         .filter(apt => apt.status === 'agendado')
-                        .map((appointment) => (
-                          <Card key={appointment.id}>
-                            <CardContent className="p-4 lg:p-6">
-                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                <div className="flex items-center space-x-4">
-                                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                    <Scissors className="h-6 w-6 text-gray-600" />
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <h3 className="font-medium text-gray-900">{appointment.service}</h3>
-                                    <p className="text-sm text-gray-600 mb-1">Barbeiro: {appointment.barber}</p>
-                                    <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-500 gap-1 sm:gap-3">
-                                      <div className="flex items-center">
-                                        <Calendar className="h-4 w-4 mr-1" />
-                                        {new Date(appointment.date).toLocaleDateString('pt-BR')}
-                                      </div>
-                                      <div className="flex items-center">
-                                        <Clock className="h-4 w-4 mr-1" />
-                                        {appointment.time}
+                        .map((appointment) => {
+                          const barberImage = getBarberImage(appointment.barber)
+                          return (
+                            <Card key={appointment.id}>
+                              <CardContent className="p-4 lg:p-6">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                  <div className="flex items-center space-x-4">
+                                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                      {barberImage ? (
+                                        <img 
+                                          src={barberImage} 
+                                          alt={appointment.barber}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <Scissors className="h-6 w-6 text-gray-600" />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <h3 className="font-medium text-gray-900">{appointment.service}</h3>
+                                      <p className="text-sm text-gray-600 mb-1">Barbeiro: {appointment.barber}</p>
+                                      <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-500 gap-1 sm:gap-3">
+                                        <div className="flex items-center">
+                                          <Calendar className="h-4 w-4 mr-1" />
+                                          {new Date(appointment.date).toLocaleDateString('pt-BR')}
+                                        </div>
+                                        <div className="flex items-center">
+                                          <Clock className="h-4 w-4 mr-1" />
+                                          {appointment.time}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
+                                  <div className="flex items-center justify-between sm:justify-end sm:space-x-3">
+                                    <span className="text-lg font-medium text-gray-900">
+                                      R$ {appointment.price}
+                                    </span>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => cancelAppointment(appointment.id)}
+                                    >
+                                      Cancelar
+                                    </Button>
+                                  </div>
                                 </div>
-                                <div className="flex items-center justify-between sm:justify-end sm:space-x-3">
-                                  <span className="text-lg font-medium text-gray-900">
-                                    R$ {appointment.price}
-                                  </span>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => cancelAppointment(appointment.id)}
-                                  >
-                                    Cancelar
-                                  </Button>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
+                              </CardContent>
+                            </Card>
+                          )
+                        })}
                     </div>
                   )}
                 </div>
@@ -896,41 +941,52 @@ export default function BarbershopApp() {
                     <div className="space-y-4">
                       {appointments
                         .filter(apt => apt.status !== 'agendado')
-                        .map((appointment) => (
-                          <Card key={appointment.id}>
-                            <CardContent className="p-4 lg:p-6">
-                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                <div className="flex items-center space-x-4">
-                                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                    <Scissors className="h-6 w-6 text-gray-600" />
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <h3 className="font-medium text-gray-900">{appointment.service}</h3>
-                                    <p className="text-sm text-gray-600 mb-1">Barbeiro: {appointment.barber}</p>
-                                    <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-500 gap-1 sm:gap-3">
-                                      <div className="flex items-center">
-                                        <Calendar className="h-4 w-4 mr-1" />
-                                        {new Date(appointment.date).toLocaleDateString('pt-BR')}
-                                      </div>
-                                      <div className="flex items-center">
-                                        <Clock className="h-4 w-4 mr-1" />
-                                        {appointment.time}
+                        .map((appointment) => {
+                          const barberImage = getBarberImage(appointment.barber)
+                          return (
+                            <Card key={appointment.id}>
+                              <CardContent className="p-4 lg:p-6">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                  <div className="flex items-center space-x-4">
+                                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                      {barberImage ? (
+                                        <img 
+                                          src={barberImage} 
+                                          alt={appointment.barber}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <Scissors className="h-6 w-6 text-gray-600" />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <h3 className="font-medium text-gray-900">{appointment.service}</h3>
+                                      <p className="text-sm text-gray-600 mb-1">Barbeiro: {appointment.barber}</p>
+                                      <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-500 gap-1 sm:gap-3">
+                                        <div className="flex items-center">
+                                          <Calendar className="h-4 w-4 mr-1" />
+                                          {new Date(appointment.date).toLocaleDateString('pt-BR')}
+                                        </div>
+                                        <div className="flex items-center">
+                                          <Clock className="h-4 w-4 mr-1" />
+                                          {appointment.time}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
+                                  <div className="flex items-center justify-between sm:justify-end sm:space-x-3">
+                                    <span className="text-lg font-medium text-gray-900">
+                                      R$ {appointment.price}
+                                    </span>
+                                    <Badge variant={appointment.status === 'cancelado' ? 'secondary' : 'default'}>
+                                      {appointment.status === 'cancelado' ? 'Cancelado' : 'Concluído'}
+                                    </Badge>
+                                  </div>
                                 </div>
-                                <div className="flex items-center justify-between sm:justify-end sm:space-x-3">
-                                  <span className="text-lg font-medium text-gray-900">
-                                    R$ {appointment.price}
-                                  </span>
-                                  <Badge variant={appointment.status === 'cancelado' ? 'secondary' : 'default'}>
-                                    {appointment.status === 'cancelado' ? 'Cancelado' : 'Concluído'}
-                                  </Badge>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
+                              </CardContent>
+                            </Card>
+                          )
+                        })}
                     </div>
                   )}
                 </div>
