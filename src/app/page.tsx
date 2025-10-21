@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { Calendar, Clock, Scissors, User, Phone, Mail, Plus, Home, Settings, LogOut, CalendarDays, CreditCard, X, ArrowLeft, Menu, Eye, Users } from 'lucide-react'
+import { Calendar, Clock, Scissors, User, Phone, Mail, Plus, Home, Settings, LogOut, CalendarDays, CreditCard, X, ArrowLeft, Menu, Eye, Users, Heart } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { createSupabaseClient } from '@/lib/supabase'
 
@@ -24,11 +24,52 @@ interface Appointment {
 }
 
 const barbers = [
-  { id: '1', name: 'Carlos Silva' },
-  { id: '2', name: 'João Santos' },
-  { id: '3', name: 'Pedro Lima' },
-  { id: '4', name: 'Rafael Costa' }
+  { 
+    id: '1', 
+    name: 'Ellibe',
+    image: 'https://k6hrqrxuu8obbfwn.public.blob.vercel-storage.com/temp/151972b5-b22f-4f18-a464-d72cc547e48f.jpg'
+  },
+  { id: '2', name: 'Kaynho' },
+  { 
+    id: '3', 
+    name: 'Oliver Leticia',
+    image: 'https://k6hrqrxuu8obbfwn.public.blob.vercel-storage.com/temp/ada96c30-727a-4f8e-83e4-07c03ded52a8.jpg'
+  }
 ]
+
+// Função para gerar horários de 15 em 15 minutos das 10h às 20h
+const generateTimeSlots = () => {
+  const slots = []
+  for (let hour = 10; hour <= 19; hour++) {
+    for (let minute = 0; minute < 60; minute += 15) {
+      const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+      slots.push(timeString)
+    }
+  }
+  // Adicionar 20:00 como último horário
+  slots.push('20:00')
+  return slots
+}
+
+// Função para organizar horários por período
+const organizeTimeSlotsByPeriod = (timeSlots: string[]) => {
+  const morning = timeSlots.filter(time => {
+    const hour = parseInt(time.split(':')[0])
+    return hour >= 10 && hour < 12
+  })
+  
+  const afternoon = timeSlots.filter(time => {
+    const hour = parseInt(time.split(':')[0])
+    return hour >= 12 && hour < 18
+  })
+  
+  const evening = timeSlots.filter(time => {
+    const hour = parseInt(time.split(':')[0])
+    return hour >= 18
+  })
+  
+  return { morning, afternoon, evening }
+}
 
 export default function BarbershopApp() {
   const { user, loading, login, register, logout } = useAuth()
@@ -45,10 +86,18 @@ export default function BarbershopApp() {
   const [loginError, setLoginError] = useState('')
   const [registerError, setRegisterError] = useState('')
   
+  // Estados do novo fluxo de agendamento
+  const [appointmentStep, setAppointmentStep] = useState<'date-time' | 'barber-selection'>('date-time')
+  const [selectedDate, setSelectedDate] = useState('')
+  const [selectedTime, setSelectedTime] = useState('')
+  const [availableBarbers, setAvailableBarbers] = useState<typeof barbers>([])
+  const [unavailableBarbers, setUnavailableBarbers] = useState<typeof barbers>([])
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([])
+  
   // Estados do formulário
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
-  const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', password: '' })
-  const [appointmentForm, setAppointmentForm] = useState({ date: '', time: '', service: 'Corte Simples', barber: '' })
+  const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '' })
+  const [appointmentForm, setAppointmentForm] = useState({ service: 'Corte Simples', barber: '' })
 
   // Carregar agendamentos do usuário
   useEffect(() => {
@@ -60,6 +109,13 @@ export default function BarbershopApp() {
       setActiveTab('agendamentos')
     }
   }, [user])
+
+  // Carregar horários disponíveis quando data for selecionada
+  useEffect(() => {
+    if (selectedDate) {
+      loadAvailableTimeSlotsForDate()
+    }
+  }, [selectedDate])
 
   const loadUserAppointments = async () => {
     if (!user) return
@@ -135,6 +191,90 @@ export default function BarbershopApp() {
     }
   }
 
+  // Carregar horários disponíveis para a data selecionada
+  const loadAvailableTimeSlotsForDate = async () => {
+    if (!selectedDate) return
+
+    try {
+      const supabase = createSupabaseClient()
+      
+      if (!supabase) {
+        console.warn('Supabase não configurado')
+        setAvailableTimeSlots(generateTimeSlots())
+        return
+      }
+
+      // Buscar todos os agendamentos para a data selecionada
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('time, barber')
+        .eq('date', selectedDate)
+        .eq('status', 'agendado')
+
+      if (error) throw error
+
+      // Obter todos os horários possíveis
+      const allTimeSlots = generateTimeSlots()
+      
+      // Contar quantos barbeiros estão ocupados em cada horário
+      const occupiedSlots: { [key: string]: number } = {}
+      data.forEach(apt => {
+        occupiedSlots[apt.time] = (occupiedSlots[apt.time] || 0) + 1
+      })
+      
+      // Filtrar horários onde todos os barbeiros estão ocupados
+      const availableSlots = allTimeSlots.filter(time => {
+        const occupiedCount = occupiedSlots[time] || 0
+        return occupiedCount < barbers.length // Se menos que 3 barbeiros ocupados, horário disponível
+      })
+      
+      setAvailableTimeSlots(availableSlots)
+    } catch (error) {
+      console.error('Erro ao carregar horários disponíveis:', error)
+      setAvailableTimeSlots(generateTimeSlots())
+    }
+  }
+
+  // Carregar barbeiros disponíveis e indisponíveis para data e horário específicos
+  const loadBarbersForDateTime = async (date: string, time: string) => {
+    try {
+      const supabase = createSupabaseClient()
+      
+      if (!supabase) {
+        console.warn('Supabase não configurado')
+        setAvailableBarbers(barbers)
+        setUnavailableBarbers([])
+        return
+      }
+
+      // Buscar barbeiros ocupados neste horário específico
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('barber')
+        .eq('date', date)
+        .eq('time', time)
+        .eq('status', 'agendado')
+
+      if (error) throw error
+
+      // Separar barbeiros disponíveis e indisponíveis
+      const occupiedBarberNames = data.map(apt => apt.barber)
+      const availableBarbersFiltered = barbers.filter(barber => 
+        !occupiedBarberNames.includes(barber.name)
+      )
+      const unavailableBarbersFiltered = barbers.filter(barber => 
+        occupiedBarberNames.includes(barber.name)
+      )
+      
+      setAvailableBarbers(availableBarbersFiltered)
+      setUnavailableBarbers(unavailableBarbersFiltered)
+    } catch (error) {
+      console.error('Erro ao carregar barbeiros:', error)
+      setAvailableBarbers(barbers)
+      setUnavailableBarbers([])
+    }
+  }
+
   // Login com validação real
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -157,8 +297,20 @@ export default function BarbershopApp() {
     e.preventDefault()
     setRegisterError('')
 
-    if (!registerForm.name || !registerForm.email || !registerForm.phone || !registerForm.password) {
+    if (!registerForm.name || !registerForm.email || !registerForm.phone || !registerForm.password || !registerForm.confirmPassword) {
       setRegisterError('Preencha todos os campos')
+      return
+    }
+
+    // Validação do tamanho da senha
+    if (registerForm.password.length < 8) {
+      setRegisterError('A senha deve ter no mínimo 8 caracteres')
+      return
+    }
+
+    // Validação das senhas
+    if (registerForm.password !== registerForm.confirmPassword) {
+      setRegisterError('As senhas não coincidem')
       return
     }
 
@@ -174,17 +326,38 @@ export default function BarbershopApp() {
     setShowUpgradePopup(true)
   }
 
-  // Agendar corte - agora salva no banco
-  const handleScheduleAttempt = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (appointmentForm.date && appointmentForm.time && appointmentForm.barber) {
-      await confirmSchedule()
-    }
+  // Função para quando clica "não tenho interesse" - abre modal de agendamento
+  const handleNoInterest = () => {
+    setShowUpgradePopup(false)
+    setShowNewAppointment(true)
+    setAppointmentStep('date-time')
+    setSelectedDate('')
+    setSelectedTime('')
+    setAvailableTimeSlots([])
+    setAvailableBarbers([])
+    setUnavailableBarbers([])
+    setAppointmentForm({ service: 'Corte Simples', barber: '' })
+  }
+
+  // Selecionar horário e ir para próxima etapa
+  const handleTimeSelection = async (time: string) => {
+    setSelectedTime(time)
+    await loadBarbersForDateTime(selectedDate, time)
+    setAppointmentStep('barber-selection')
+  }
+
+  // Voltar para seleção de data/horário
+  const handleBackToDateTime = () => {
+    setAppointmentStep('date-time')
+    setSelectedTime('')
+    setAvailableBarbers([])
+    setUnavailableBarbers([])
+    setAppointmentForm({ ...appointmentForm, barber: '' })
   }
 
   // Confirmar agendamento
-  const confirmSchedule = async () => {
-    if (!user) return
+  const confirmSchedule = async (barberId: string) => {
+    if (!user || !selectedDate || !selectedTime) return
 
     const servicePrice = {
       'Corte Simples': 25,
@@ -193,7 +366,7 @@ export default function BarbershopApp() {
       'Barba': 20
     }
     
-    const selectedBarber = barbers.find(b => b.id === appointmentForm.barber)
+    const selectedBarber = barbers.find(b => b.id === barberId)
     
     try {
       const supabase = createSupabaseClient()
@@ -208,8 +381,8 @@ export default function BarbershopApp() {
         .insert([
           {
             user_id: user.id,
-            date: appointmentForm.date,
-            time: appointmentForm.time,
+            date: selectedDate,
+            time: selectedTime,
             service: appointmentForm.service,
             barber: selectedBarber?.name || '',
             status: 'agendado',
@@ -229,18 +402,19 @@ export default function BarbershopApp() {
         await loadAllAppointments()
       }
       
-      setAppointmentForm({ date: '', time: '', service: 'Corte Simples', barber: '' })
+      // Resetar formulário
+      setSelectedDate('')
+      setSelectedTime('')
+      setAvailableTimeSlots([])
+      setAvailableBarbers([])
+      setUnavailableBarbers([])
+      setAppointmentForm({ service: 'Corte Simples', barber: '' })
+      setAppointmentStep('date-time')
       setShowNewAppointment(false)
       setShowUpgradePopup(false)
     } catch (error) {
       console.error('Erro ao agendar:', error)
     }
-  }
-
-  // Função para quando clica "não tenho interesse" - abre modal de agendamento
-  const handleNoInterest = () => {
-    setShowUpgradePopup(false)
-    setShowNewAppointment(true)
   }
 
   // Cancelar agendamento
@@ -290,7 +464,7 @@ export default function BarbershopApp() {
     return allAppointments.filter(apt => apt.date === date)
   }
 
-  // Obter data de hoje e amanhã
+  // Obter data de hoje e amanhã - CORREÇÃO AQUI
   const today = new Date().toISOString().split('T')[0]
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
@@ -418,6 +592,17 @@ export default function BarbershopApp() {
                         type="password"
                         value={registerForm.password}
                         onChange={(e) => setRegisterForm({...registerForm, password: e.target.value})}
+                        placeholder="••••••••"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="confirm-password">Confirmar Senha</Label>
+                      <Input
+                        id="confirm-password"
+                        type="password"
+                        value={registerForm.confirmPassword}
+                        onChange={(e) => setRegisterForm({...registerForm, confirmPassword: e.target.value})}
                         placeholder="••••••••"
                         required
                       />
@@ -1362,90 +1547,254 @@ export default function BarbershopApp() {
         )}
       </div>
 
-      {/* Modal para novo agendamento */}
+      {/* Modal para novo agendamento - NOVO FLUXO EM ETAPAS */}
       {showNewAppointment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto">
             <CardHeader>
-              <CardTitle>Novo Agendamento</CardTitle>
-              <CardDescription>Escolha a data, horário, barbeiro e tipo de serviço</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>
+                    {appointmentStep === 'date-time' ? 'Selecionar Data e Horário' : 'Escolher Barbeiro'}
+                  </CardTitle>
+                  <CardDescription>
+                    {appointmentStep === 'date-time' 
+                      ? 'Escolha a data e clique no horário desejado' 
+                      : `Data: ${new Date(selectedDate).toLocaleDateString('pt-BR')} às ${selectedTime}`
+                    }
+                  </CardDescription>
+                </div>
+                {appointmentStep === 'barber-selection' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleBackToDateTime}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleScheduleAttempt} className="space-y-4">
-                <div>
-                  <Label htmlFor="date">Data</Label>
-                  <Input
-                    id="date"
-                    type="date"
-                    value={appointmentForm.date}
-                    onChange={(e) => setAppointmentForm({...appointmentForm, date: e.target.value})}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="time">Horário</Label>
-                  <select
-                    id="time"
-                    value={appointmentForm.time}
-                    onChange={(e) => setAppointmentForm({...appointmentForm, time: e.target.value})}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                    required
-                  >
-                    <option value="">Selecione um horário</option>
-                    <option value="09:00">09:00</option>
-                    <option value="10:00">10:00</option>
-                    <option value="11:00">11:00</option>
-                    <option value="14:00">14:00</option>
-                    <option value="15:00">15:00</option>
-                    <option value="16:00">16:00</option>
-                    <option value="17:00">17:00</option>
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="barber">Barbeiro</Label>
-                  <select
-                    id="barber"
-                    value={appointmentForm.barber}
-                    onChange={(e) => setAppointmentForm({...appointmentForm, barber: e.target.value})}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                    required
-                  >
-                    <option value="">Selecione um barbeiro</option>
-                    {barbers.map((barber) => (
-                      <option key={barber.id} value={barber.id}>
-                        {barber.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="service">Tipo de Serviço</Label>
-                  <select
-                    id="service"
-                    value={appointmentForm.service}
-                    onChange={(e) => setAppointmentForm({...appointmentForm, service: e.target.value})}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                  >
-                    <option value="Corte Simples">Corte Simples - R$ 25</option>
-                    <option value="Corte + Barba">Corte + Barba - R$ 40</option>
-                    <option value="Corte Premium">Corte Premium - R$ 50</option>
-                    <option value="Barba">Apenas Barba - R$ 20</option>
-                  </select>
-                </div>
-                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 pt-4">
+              {appointmentStep === 'date-time' && (
+                <div className="space-y-4">
+                  {/* Seleção de Data */}
+                  <div>
+                    <Label htmlFor="date">Data</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      required
+                    />
+                  </div>
+
+                  {/* Seleção de Serviço */}
+                  <div>
+                    <Label htmlFor="service">Tipo de Serviço</Label>
+                    <select
+                      id="service"
+                      value={appointmentForm.service}
+                      onChange={(e) => setAppointmentForm({...appointmentForm, service: e.target.value})}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                    >
+                      <option value="Corte Simples">Corte Simples - R$ 25</option>
+                      <option value="Corte + Barba">Corte + Barba - R$ 40</option>
+                      <option value="Corte Premium">Corte Premium - R$ 50</option>
+                      <option value="Barba">Apenas Barba - R$ 20</option>
+                    </select>
+                  </div>
+
+                  {/* Horários Disponíveis */}
+                  {selectedDate && (
+                    <div>
+                      <Label>Horários Disponíveis</Label>
+                      {availableTimeSlots.length === 0 ? (
+                        <p className="text-sm text-red-600 mt-2">
+                          Não há horários disponíveis para esta data.
+                        </p>
+                      ) : (
+                        <div className="mt-2">
+                          {(() => {
+                            const { morning, afternoon, evening } = organizeTimeSlotsByPeriod(availableTimeSlots)
+                            return (
+                              <div className="space-y-4">
+                                {/* Manhã */}
+                                {morning.length > 0 && (
+                                  <div>
+                                    <h4 className="text-sm font-medium text-gray-700 mb-2">Manhã</h4>
+                                    <div className="grid grid-cols-3 gap-2">
+                                      {morning.map((time) => (
+                                        <Button
+                                          key={time}
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleTimeSelection(time)}
+                                          className="text-xs h-8 border-orange-500 text-orange-500 hover:bg-orange-50"
+                                        >
+                                          {time}
+                                        </Button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Tarde */}
+                                {afternoon.length > 0 && (
+                                  <div>
+                                    <h4 className="text-sm font-medium text-gray-700 mb-2">Tarde</h4>
+                                    <div className="grid grid-cols-3 gap-2">
+                                      {afternoon.map((time) => (
+                                        <Button
+                                          key={time}
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleTimeSelection(time)}
+                                          className="text-xs h-8 border-orange-500 text-orange-500 hover:bg-orange-50"
+                                        >
+                                          {time}
+                                        </Button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Noite */}
+                                {evening.length > 0 && (
+                                  <div>
+                                    <h4 className="text-sm font-medium text-gray-700 mb-2">Noite</h4>
+                                    <div className="grid grid-cols-3 gap-2">
+                                      {evening.map((time) => (
+                                        <Button
+                                          key={time}
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleTimeSelection(time)}
+                                          className="text-xs h-8 border-orange-500 text-orange-500 hover:bg-orange-50"
+                                        >
+                                          {time}
+                                        </Button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <Button
-                    type="button"
                     variant="outline"
                     onClick={() => setShowNewAppointment(false)}
-                    className="flex-1"
+                    className="w-full mt-4"
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit" className="flex-1 bg-black hover:bg-gray-800">
-                    Fazer agendamento
-                  </Button>
                 </div>
-              </form>
+              )}
+
+              {appointmentStep === 'barber-selection' && (
+                <div className="space-y-4">
+                  {/* Barbeiros Disponíveis */}
+                  {availableBarbers.length > 0 && (
+                    <div>
+                      <Label>Barbeiros Disponíveis</Label>
+                      <div className="mt-2 space-y-2">
+                        {availableBarbers.map((barber) => (
+                          <Card key={barber.id} className="border border-gray-200 hover:border-orange-500 transition-colors cursor-pointer" onClick={() => confirmSchedule(barber.id)}>
+                            <CardContent className="p-4">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
+                                  {barber.image ? (
+                                    <img 
+                                      src={barber.image} 
+                                      alt={barber.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <User className="h-6 w-6 text-gray-600" />
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <h3 className="font-medium text-gray-900">{barber.name}</h3>
+                                  <div className="flex items-center mt-1">
+                                    <Heart className="h-4 w-4 text-orange-500 mr-1" />
+                                    <span className="text-sm text-gray-600">4.8</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Barbeiros Indisponíveis */}
+                  {unavailableBarbers.length > 0 && (
+                    <div>
+                      <Label className="text-gray-500">Indisponíveis no horário desejado:</Label>
+                      <div className="mt-2 space-y-2">
+                        {unavailableBarbers.map((barber) => (
+                          <Card key={barber.id} className="border border-gray-200 opacity-50">
+                            <CardContent className="p-4">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
+                                    {barber.image ? (
+                                      <img 
+                                        src={barber.image} 
+                                        alt={barber.name}
+                                        className="w-full h-full object-cover grayscale"
+                                      />
+                                    ) : (
+                                      <User className="h-6 w-6 text-gray-400" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1">
+                                    <h3 className="font-medium text-gray-500">{barber.name}</h3>
+                                    <div className="flex items-center mt-1">
+                                      <Heart className="h-4 w-4 text-gray-400 mr-1" />
+                                      <span className="text-sm text-gray-400">4.8</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-orange-500 text-orange-500 hover:bg-orange-50"
+                                  onClick={handleBackToDateTime}
+                                >
+                                  Ver disponibilidades
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Caso não haja barbeiros disponíveis nem indisponíveis */}
+                  {availableBarbers.length === 0 && unavailableBarbers.length === 0 && (
+                    <p className="text-sm text-red-600 mt-2">
+                      Não há barbeiros disponíveis para este horário.
+                    </p>
+                  )}
+
+                  <div className="bg-gray-50 p-3 rounded-md">
+                    <h4 className="font-medium text-gray-900 mb-1">Resumo do Agendamento</h4>
+                    <p className="text-sm text-gray-600">Serviço: {appointmentForm.service}</p>
+                    <p className="text-sm text-gray-600">Data: {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
+                    <p className="text-sm text-gray-600">Horário: {selectedTime}</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
